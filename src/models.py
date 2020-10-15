@@ -31,7 +31,7 @@ class Contact(db.Model):
     def serialize(self):
         return {
             "id": self.id,
-            "full name": self.full_name,
+            "full_name": self.full_name,
             "email": self.email,
             "address": self.address,
             "phone": self.phone

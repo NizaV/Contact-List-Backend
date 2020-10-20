@@ -24,6 +24,7 @@ class Contact(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     address = db.Column(db.String(120), nullable=False)
     phone = db.Column(db.String(15), nullable=False)
+    status = db.Column(db.String(15), nullable=False)
 
     def __repr__(self):
         return 'Contact %r>' % self.full_name
@@ -34,5 +35,6 @@ class Contact(db.Model):
             "full_name": self.full_name,
             "email": self.email,
             "address": self.address,
-            "phone": self.phone
+            "phone": self.phone,
+            "status": self.status
         }

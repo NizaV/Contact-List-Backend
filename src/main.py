@@ -42,7 +42,7 @@ def get_all_agenda():
 @app.route('/add', methods=['POST'])
 def add_contact():
     body = request.get_json()
-    contact = Contact(full_name=body['full_name'], email=body['email'], address=body['address'], phone=body['phone'])
+    contact = Contact(full_name=body['full_name'], email=body['email'], address=body['address'], phone=body['phone'], status=body['status'])
     db.session.add(contact)
     db.session.commit()
     print(contact)
@@ -86,6 +86,8 @@ def update_contact(id):
         contact.address = body['address']
     if "phone" in body:
         contact.phone = body['phone']
+    if "status" in body:
+        contact.status = body['status']
     db.session.commit()
     return jsonify(contact.serialize()), 200
 

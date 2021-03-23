@@ -9,16 +9,29 @@ from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
 from models import db, User, Contact
-#from models import Person
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
+import datetime
+
+## Security Suite
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.url_map.strict_slashes = False
+
+# Setup the Flask-JWT-Extended extension
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET')
+
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DB_CONNECTION_STRING')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['JWT_TOKEN_LOCATION'] = ['headers', 'query_string']
 MIGRATE = Migrate(app, db)
 db.init_app(app)
 CORS(app)
 setup_admin(app)
+jwt = JWTManager(app)
 
 # Handle/serialize errors like a JSON object
 @app.errorhandler(APIException)
@@ -29,6 +42,79 @@ def handle_invalid_usage(error):
 @app.route('/')
 def sitemap():
     return generate_sitemap(app)
+
+@app.route('/register', methods=['POST'])
+def register():
+    email = request.json.get("email", None)
+    username = request.json.get("username", None)
+    password = request.json.get("password", None)
+
+    if not email:
+        return jsonify({"msg": "Email is required"}), 400
+    if not username:
+        return jsonify({"msg": "Username is required"}), 400
+    if not password:
+        return jsonify({"msg": "Password is required"}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if user:
+        return jsonify({"msg": "Username  already exists"}), 400
+
+    user = User(email=email, username=username, password=generate_password_hash(password), is_active=True)
+    db.session.add(user)
+    db.session.commit()
+
+    return jsonify({"msg": "User successfully registered"}),200
+
+@app.route('/login', methods=['POST'])
+def login():
+    # make sure request is a json
+    if not request.is_json:
+        return jsonify({"msg": "Missing JSON in request"}), 400
+
+    # get email and password from request
+    username = request.json.get('username', None)
+    password = request.json.get('password', None)
+
+    # if params are empty, return a 400
+    if not username:
+        return jsonify({"msg": "Missing username parameter"}), 400
+    if not password:
+        return jsonify({"msg": "Missing password parameter"}), 400
+
+    # try to find user
+    try:
+        user = User.query.filter_by(username=username).first()
+        if user.validate(password):
+            # if user is validated (password is correct), return the token
+            expires = datetime.timedelta(days=7)
+            response_msg = {
+                "user": user.serialize(),
+                'token': create_access_token(identity=username,expires_delta=expires),
+                "expires_at": expires.total_seconds()*1000 
+            }
+            status_code = 200
+        else:
+            raise Exception('Failed to login. Check your username and password.')
+    # catch the specific exception and store in var
+    except Exception as e:
+        response_msg = {
+            'msg': str(e),
+            'status': 401
+        }
+        status_code = 401
+    
+    return jsonify(response_msg), status_code
+
+@app.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    # Access the identity of the current user with get_jwt_identity
+    current_user = get_jwt_identity()
+    return jsonify({
+        "logged_in_as": current_user,
+        "msg": "Access Granted to Private route"
+    }), 200
 
 @app.route('/agenda', methods=['GET'])
 def get_all_agenda():
